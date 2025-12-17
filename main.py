@@ -1,12 +1,12 @@
 """
-Sprint 2 Starter Code
+Sprint 3 Final MVP Code
 Volunteer Hours Tracking System
 Tech Stack: Python + Tkinter + SQLite
 
-Sprint 2 Goal:
-- Volunteer dashboard
-- Hour submission
-- View submission history
+Sprint 3 Goal:
+- Admin approval of hours
+- Role-based access (Volunteer vs Admin)
+- Final MVP polish
 """
 
 import sqlite3
@@ -82,24 +82,26 @@ def login_user(email, password):
     conn.close()
 
     if user:
-        messagebox.showinfo("Login Success", f"Logged in as {user[1]}")
-        show_dashboard(user[0])
+        if user[1] == "Admin":
+            show_admin_dashboard()
+        else:
+            show_volunteer_dashboard(user[0])
     else:
         messagebox.showerror("Login Failed", "Invalid credentials")
 
-# -------------------- VOLUNTEER DASHBOARD --------------------
+# -------------------- VOLUNTEER FUNCTIONS --------------------
 
 def submit_hours(user_id, event_name, date, hours_worked, description):
     conn = connect_db()
     cursor = conn.cursor()
     cursor.execute(
-        "INSERT INTO VolunteerHours (user_id, event_name, date, hours_worked, description, status) VALUES (?, ?, ?, ?, ?, 'Pending')",
+        "INSERT INTO VolunteerHours (user_id, event_name, date, hours_worked, description) VALUES (?, ?, ?, ?, ?)",
         (user_id, event_name, date, hours_worked, description)
     )
     conn.commit()
     conn.close()
-    messagebox.showinfo("Success", "Hours submitted successfully!")
-    populate_history(user_id)
+    messagebox.showinfo("Submitted", "Hours submitted for approval")
+    populate_volunteer_history(user_id)
 
 
 def get_user_hours(user_id):
@@ -113,115 +115,150 @@ def get_user_hours(user_id):
     conn.close()
     return rows
 
+# -------------------- ADMIN FUNCTIONS --------------------
 
-def show_dashboard(user_id):
+def get_pending_hours():
+    conn = connect_db()
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT hour_id, event_name, date, hours_worked FROM VolunteerHours WHERE status='Pending'"
+    )
+    rows = cursor.fetchall()
+    conn.close()
+    return rows
+
+
+def update_status(hour_id, status):
+    conn = connect_db()
+    cursor = conn.cursor()
+    cursor.execute(
+        "UPDATE VolunteerHours SET status=? WHERE hour_id=?",
+        (status, hour_id)
+    )
+    conn.commit()
+    conn.close()
+    populate_admin_table()
+
+# -------------------- DASHBOARDS --------------------
+
+def show_volunteer_dashboard(user_id):
     login_frame.pack_forget()
     register_frame.pack_forget()
-    dashboard_frame.pack(pady=10)
+    volunteer_frame.pack(pady=10)
 
-    submit_button.config(command=lambda: submit_hours(
+    submit_btn.config(command=lambda: submit_hours(
         user_id,
-        event_name_entry.get(),
+        event_entry.get(),
         date_entry.get(),
         hours_entry.get(),
-        description_entry.get()
+        desc_entry.get()
     ))
 
-    populate_history(user_id)
+    populate_volunteer_history(user_id)
 
 
-def populate_history(user_id):
-    for row in history_tree.get_children():
-        history_tree.delete(row)
+def show_admin_dashboard():
+    login_frame.pack_forget()
+    register_frame.pack_forget()
+    admin_frame.pack(pady=10)
+    populate_admin_table()
 
+
+def populate_volunteer_history(user_id):
+    for row in volunteer_tree.get_children():
+        volunteer_tree.delete(row)
     for hr in get_user_hours(user_id):
-        history_tree.insert('', 'end', values=hr)
+        volunteer_tree.insert('', 'end', values=hr)
+
+
+def populate_admin_table():
+    for row in admin_tree.get_children():
+        admin_tree.delete(row)
+    for hr in get_pending_hours():
+        admin_tree.insert('', 'end', values=hr)
 
 # -------------------- UI --------------------
 
 root = tk.Tk()
-root.title("Volunteer Hours Tracking System – Sprint 2")
-root.geometry("600x500")
+root.title("Volunteer Hours Tracking System – Final MVP")
+root.geometry("700x500")
 
 # Login Frame
 login_frame = tk.Frame(root)
 login_frame.pack(pady=10)
 
-email_label = tk.Label(login_frame, text="Email")
-email_label.grid(row=0, column=0)
+tk.Label(login_frame, text="Email").grid(row=0, column=0)
 email_entry = tk.Entry(login_frame)
 email_entry.grid(row=0, column=1)
 
-password_label = tk.Label(login_frame, text="Password")
-password_label.grid(row=1, column=0)
+tk.Label(login_frame, text="Password").grid(row=1, column=0)
 password_entry = tk.Entry(login_frame, show="*")
 password_entry.grid(row=1, column=1)
 
-login_button = tk.Button(
-    login_frame,
-    text="Login",
-    command=lambda: login_user(email_entry.get(), password_entry.get())
-)
-login_button.grid(row=2, columnspan=2, pady=5)
+login_btn = tk.Button(login_frame, text="Login", command=lambda: login_user(email_entry.get(), password_entry.get()))
+login_btn.grid(row=2, columnspan=2, pady=5)
 
-# Registration Frame
+# Register Frame
 register_frame = tk.Frame(root)
 register_frame.pack(pady=10)
 
+tk.Label(register_frame, text="Name").grid(row=0, column=0)
 name_entry = tk.Entry(register_frame)
 name_entry.grid(row=0, column=1)
-tk.Label(register_frame, text="Name").grid(row=0, column=0)
 
+tk.Label(register_frame, text="Email").grid(row=1, column=0)
 reg_email_entry = tk.Entry(register_frame)
 reg_email_entry.grid(row=1, column=1)
-tk.Label(register_frame, text="Email").grid(row=1, column=0)
 
+tk.Label(register_frame, text="Password").grid(row=2, column=0)
 reg_password_entry = tk.Entry(register_frame, show="*")
 reg_password_entry.grid(row=2, column=1)
-tk.Label(register_frame, text="Password").grid(row=2, column=0)
 
-register_button = tk.Button(
-    register_frame,
-    text="Register",
-    command=lambda: register_user(
-        name_entry.get(),
-        reg_email_entry.get(),
-        reg_password_entry.get()
-    )
-)
-register_button.grid(row=3, columnspan=2, pady=5)
+register_btn = tk.Button(register_frame, text="Register", command=lambda: register_user(name_entry.get(), reg_email_entry.get(), reg_password_entry.get()))
+register_btn.grid(row=3, columnspan=2, pady=5)
 
-# Dashboard Frame
-dashboard_frame = tk.Frame(root)
+# Volunteer Dashboard
+volunteer_frame = tk.Frame(root)
 
-tk.Label(dashboard_frame, text="Event Name").grid(row=0, column=0)
-event_name_entry = tk.Entry(dashboard_frame)
-event_name_entry.grid(row=0, column=1)
+tk.Label(volunteer_frame, text="Event").grid(row=0, column=0)
+event_entry = tk.Entry(volunteer_frame)
+event_entry.grid(row=0, column=1)
 
-tk.Label(dashboard_frame, text="Date (YYYY-MM-DD)").grid(row=1, column=0)
-date_entry = tk.Entry(dashboard_frame)
+tk.Label(volunteer_frame, text="Date").grid(row=1, column=0)
+date_entry = tk.Entry(volunteer_frame)
 date_entry.grid(row=1, column=1)
 
-tk.Label(dashboard_frame, text="Hours Worked").grid(row=2, column=0)
-hours_entry = tk.Entry(dashboard_frame)
+tk.Label(volunteer_frame, text="Hours").grid(row=2, column=0)
+hours_entry = tk.Entry(volunteer_frame)
 hours_entry.grid(row=2, column=1)
 
-tk.Label(dashboard_frame, text="Description").grid(row=3, column=0)
-description_entry = tk.Entry(dashboard_frame)
-description_entry.grid(row=3, column=1)
+tk.Label(volunteer_frame, text="Description").grid(row=3, column=0)
+desc_entry = tk.Entry(volunteer_frame)
+desc_entry.grid(row=3, column=1)
 
-submit_button = tk.Button(dashboard_frame, text="Submit Hours")
-submit_button.grid(row=4, columnspan=2, pady=5)
+submit_btn = tk.Button(volunteer_frame, text="Submit Hours")
+submit_btn.grid(row=4, columnspan=2, pady=5)
 
-# Submission History
-history_tree = ttk.Treeview(dashboard_frame, columns=("Event", "Date", "Hours", "Status"), show='headings')
-history_tree.heading("Event", text="Event")
-history_tree.heading("Date", text="Date")
-history_tree.heading("Hours", text="Hours")
-history_tree.heading("Status", text="Status")
-history_tree.grid(row=5, columnspan=2, pady=10)
+volunteer_tree = ttk.Treeview(volunteer_frame, columns=("Event", "Date", "Hours", "Status"), show='headings')
+for col in ("Event", "Date", "Hours", "Status"):
+    volunteer_tree.heading(col, text=col)
+volunteer_tree.grid(row=5, columnspan=2, pady=10)
 
-# Initialize DB
+# Admin Dashboard
+admin_frame = tk.Frame(root)
+
+admin_tree = ttk.Treeview(admin_frame, columns=("ID", "Event", "Date", "Hours"), show='headings')
+for col in ("ID", "Event", "Date", "Hours"):
+    admin_tree.heading(col, text=col)
+admin_tree.pack()
+
+approve_btn = tk.Button(admin_frame, text="Approve", command=lambda: update_status(admin_tree.item(admin_tree.selection())['values'][0], 'Approved'))
+approve_btn.pack(pady=5)
+
+reject_btn = tk.Button(admin_frame, text="Reject", command=lambda: update_status(admin_tree.item(admin_tree.selection())['values'][0], 'Rejected'))
+reject_btn.pack(pady=5)
+
+# Init DB
 create_tables()
 
 root.mainloop()
